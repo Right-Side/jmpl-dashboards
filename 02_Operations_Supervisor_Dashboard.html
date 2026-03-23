@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JMPL Operations & Supervisor Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --mg-red:#C41230; --mg-dark:#141820; --mg-gray:#1E2430;
+    --mg-card:#1E2430; --mg-gold:#E8B400; --mg-green:#1DB954;
+    --mg-blue:#1A73E8; --mg-orange:#F4762E; --mg-purple:#9C6FE4;
+    --text-light:#FFFFFF; --text-muted:#8A9BAE;
+    --border:#2E3A4E; --bl:rgba(46,58,78,0.6);
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:'Segoe UI',Arial,sans-serif;background:var(--mg-dark);color:var(--text-light);font-size:13px;}
+
+  /* HEADER */
+  .header{background:linear-gradient(135deg,#0D1117 0%,#161E2A 100%);border-bottom:2px solid var(--mg-blue);
+    padding:0 20px;display:flex;align-items:center;justify-content:space-between;height:58px;position:sticky;top:0;z-index:100;}
+  .mg-logo{background:var(--mg-red);color:white;font-size:18px;font-weight:900;padding:5px 12px;letter-spacing:2px;border-radius:3px;}
+  .co-info h1{font-size:14px;font-weight:700;} .co-info p{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;}
+  .live-dot{width:8px;height:8px;background:var(--mg-green);border-radius:50%;animation:pulse 1.5s infinite;}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+  .hdr-stat{text-align:center;} .hdr-stat label{font-size:10px;color:var(--text-muted);display:block;} .hdr-stat span{font-size:16px;font-weight:800;}
+
+  /* TAB BAR */
+  .tab-bar{background:var(--mg-gray);border-bottom:1px solid var(--border);display:flex;padding:0 20px;}
+  .tab{padding:11px 24px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;cursor:pointer;
+    color:var(--text-muted);border-bottom:3px solid transparent;transition:all 0.2s;user-select:none;}
+  .tab:hover{color:white;}
+  .tab.active{color:white;border-bottom-color:var(--mg-blue);}
+  .tab[data-tab="sales"].active{border-bottom-color:var(--mg-red);color:white;}
+  .tab[data-tab="service"].active{border-bottom-color:var(--mg-blue);color:white;}
+  .tab[data-tab="insurance"].active{border-bottom-color:var(--mg-gold);color:white;}
+
+  /* PANELS */
+  .panel{display:none;padding:14px 20px;animation:fadeIn 0.2s ease;}
+  .panel.active{display:block;}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+
+  /* LAYOUT */
+  .g6{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:12px;}
+  .g4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px;}
+  .g3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px;}
+  .g2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;}
+  .g32{display:grid;grid-template-columns:3fr 2fr;gap:10px;margin-bottom:12px;}
+  .g23{display:grid;grid-template-columns:2fr 3fr;gap:10px;margin-bottom:12px;}
+
+  .stitle{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:var(--text-muted);
+    margin-bottom:8px;display:flex;align-items:center;gap:8px;}
+  .stitle::after{content:'';flex:1;height:1px;background:var(--border);}
+
+  .card{background:var(--mg-card);border:1px solid var(--border);border-radius:8px;padding:12px 14px;}
+  .ctitle{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);
+    margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;}
+  .ctitle .hl{color:white;font-size:12px;text-transform:none;letter-spacing:0;}
+
+  /* KPI TILES */
+  .kt{background:var(--mg-card);border:1px solid var(--border);border-radius:8px;padding:12px 14px;position:relative;overflow:hidden;}
+  .kt::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;}
+  .kt.blue::before{background:var(--mg-blue);} .kt.red::before{background:var(--mg-red);}
+  .kt.green::before{background:var(--mg-green);} .kt.gold::before{background:var(--mg-gold);}
+  .kt.orange::before{background:var(--mg-orange);} .kt.purple::before{background:var(--mg-purple);}
+  .kt label{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;}
+  .kt .num{font-size:26px;font-weight:800;margin:3px 0 2px;} .kt .sub{font-size:10px;color:var(--text-muted);}
+  .pill{display:inline-flex;align-items:center;font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;}
+  .pill.up{background:rgba(29,185,84,.15);color:var(--mg-green);}
+  .pill.down{background:rgba(196,18,48,.15);color:#FF6B6B;}
+  .pill.warn{background:rgba(232,180,0,.15);color:var(--mg-gold);}
+  .pill.info{background:rgba(26,115,232,.15);color:var(--mg-blue);}
+
+  /* AGENT ROW */
+  .ar{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--bl);}
+  .ar:last-child{border-bottom:none;}
+  .av{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:white;flex-shrink:0;}
+  .an{flex:1;} .an .nm{font-size:12px;font-weight:600;} .an .rl{font-size:10px;color:var(--text-muted);}
+  .wb{width:80px;height:6px;background:var(--border);border-radius:3px;overflow:hidden;}
+  .wf{height:100%;border-radius:3px;} .wn{font-size:11px;font-weight:700;width:28px;text-align:right;}
+  .sd{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+  .sd.on{background:var(--mg-green);} .sd.busy{background:var(--mg-orange);} .sd.brk{background:var(--mg-gold);} .sd.off{background:#555;}
+
+  /* SLA */
+  .sla{display:inline-flex;align-items:center;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;}
+  .sla.good{background:rgba(29,185,84,.15);color:var(--mg-green);}
+  .sla.warn{background:rgba(232,180,0,.15);color:var(--mg-gold);}
+  .sla.breach{background:rgba(196,18,48,.15);color:#FF6B6B;}
+
+  /* PIPELINE TABLE */
+  .ptbl{width:100%;border-collapse:collapse;}
+  .ptbl th{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text-muted);padding:6px 8px;text-align:left;border-bottom:1px solid var(--border);}
+  .ptbl td{padding:7px 8px;font-size:12px;border-bottom:1px solid var(--bl);vertical-align:middle;}
+  .ptbl tr:last-child td{border-bottom:none;}
+  .ptbl tr:hover td{background:rgba(255,255,255,.02);}
+
+  /* APPT */
+  .ap{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--bl);}
+  .ap:last-child{border-bottom:none;}
+  .at{width:44px;font-size:11px;font-weight:700;color:var(--mg-blue);text-align:center;background:rgba(26,115,232,.1);padding:3px 4px;border-radius:4px;}
+  .ai{flex:1;} .ai .nm{font-size:12px;font-weight:600;} .ai .mt{font-size:10px;color:var(--text-muted);}
+  .as{font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;}
+  .as.inbay{background:rgba(26,115,232,.15);color:var(--mg-blue);}
+  .as.cin{background:rgba(29,185,84,.15);color:var(--mg-green);}
+  .as.wait{background:rgba(232,180,0,.15);color:var(--mg-gold);}
+  .as.pend{background:rgba(140,140,140,.15);color:#AAA;}
+  .as.done{background:rgba(29,185,84,.08);color:#888;}
+
+  /* FOLLOW-UP */
+  .fu{display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-bottom:1px solid var(--bl);}
+  .fu:last-child{border-bottom:none;}
+  .fp{width:4px;border-radius:2px;align-self:stretch;flex-shrink:0;}
+  .fp.hi{background:var(--mg-red);} .fp.md{background:var(--mg-gold);} .fp.lo{background:var(--mg-green);}
+  .ft{flex:1;} .ft .nm{font-size:12px;font-weight:600;} .ft .mt{font-size:10px;color:var(--text-muted);}
+  .fd{font-size:10px;font-weight:700;white-space:nowrap;}
+  .fd.ov{color:#FF6B6B;} .fd.td{color:var(--mg-gold);} .fd.ok{color:var(--mg-green);}
+
+  /* PIPELINE STAGE */
+  .ps{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:6px;margin-bottom:6px;border-left:3px solid;}
+  .ps label{font-size:11px;color:var(--text-muted);display:block;margin-bottom:2px;}
+  .ps .cnt{font-size:20px;font-weight:800;} .ps .dx{font-size:10px;}
+
+  /* STAT ROW */
+  .sr{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--bl);font-size:12px;}
+  .sr:last-child{border-bottom:none;}
+
+  /* PROGRESS */
+  .pb{height:5px;background:var(--border);border-radius:3px;overflow:hidden;margin-top:5px;}
+  .pf{height:100%;border-radius:3px;}
+
+  /* RENEWAL ITEM */
+  .ri{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--bl);}
+  .ri:last-child{border-bottom:none;}
+  .ri-info{flex:1;} .ri-name{font-size:12px;font-weight:600;} .ri-meta{font-size:10px;color:var(--text-muted);}
+  .ri-due{font-size:11px;font-weight:700;white-space:nowrap;} .ri-due.urg{color:#FF6B6B;} .ri-due.ok{color:var(--mg-green);} .ri-due.warn{color:var(--mg-gold);}
+
+  .footer{text-align:center;padding:10px;font-size:10px;color:var(--text-muted);border-top:1px solid var(--border);margin-top:4px;}
+  .alert-box{padding:8px 12px;border-radius:6px;font-size:11px;margin-top:8px;border-left:3px solid;}
+  .alert-box.warn{background:rgba(244,118,46,.08);border-color:var(--mg-orange);color:var(--mg-orange);}
+  .alert-box.err{background:rgba(196,18,48,.08);border-color:var(--mg-red);color:#FF6B6B;}
+  .alert-box.ok{background:rgba(29,185,84,.08);border-color:var(--mg-green);color:var(--mg-green);}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div style="display:flex;align-items:center;gap:14px;">
+    <div class="mg-logo">MG</div>
+    <div class="co-info"><h1>MG Jubilant Motorworks Pvt. Ltd.</h1><p>Operations Command Centre</p></div>
+  </div>
+  <div style="text-align:center;">
+    <div style="font-size:13px;font-weight:600;color:#64B5F6;text-transform:uppercase;letter-spacing:2px;">⚙️ Operations &amp; Supervisor Dashboard</div>
+    <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">Monday, 23 March 2026 · <span id="clk">--:--:--</span></div>
+  </div>
+  <div style="display:flex;align-items:center;gap:14px;">
+    <div class="hdr-stat"><label>Agents Online</label><span style="color:var(--mg-green)">18</span></div>
+    <div class="hdr-stat"><label>On Break</label><span style="color:var(--mg-gold)">3</span></div>
+    <div class="hdr-stat"><label>Today's Calls</label><span style="color:var(--mg-blue)">300</span></div>
+    <div class="hdr-stat"><label>Open Escalations</label><span style="color:var(--mg-orange)">6</span></div>
+    <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--mg-green);"><div class="live-dot"></div>LIVE</div>
+  </div>
+</div>
+
+<!-- TAB BAR -->
+<div class="tab-bar">
+  <div class="tab active" data-tab="all">🏢 All Departments</div>
+  <div class="tab" data-tab="sales">🚗 Sales</div>
+  <div class="tab" data-tab="service">🔧 Service</div>
+  <div class="tab" data-tab="insurance">🛡️ Insurance</div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     TAB 1 : ALL DEPARTMENTS
+══════════════════════════════════════════════════ -->
+<div class="panel active" id="panel-all">
+
+  <div class="stitle">Today's Snapshot — All Departments</div>
+  <div class="g6">
+    <div class="kt blue"><label>Inbound Calls</label><div class="num">86</div><div class="sub">Answered: <b>79</b> &nbsp; Missed: <b style="color:#FF6B6B">7</b></div></div>
+    <div class="kt green"><label>Outbound Calls</label><div class="num">214</div><div class="sub">Connected: <b>162</b> &nbsp; NP: <b>52</b></div></div>
+    <div class="kt gold"><label>WhatsApp Msgs</label><div class="num">240</div><div class="sub">Pending reply: <b style="color:var(--mg-gold)">18</b></div></div>
+    <div class="kt orange"><label>Walk-ins Today</label><div class="num">24</div><div class="sub">Booked TD: <b>7</b> · FU: <b>11</b></div></div>
+    <div class="kt red"><label>Escalations</label><div class="num" style="color:#FF6B6B">6</div><div class="sub">SLA breaches: <b style="color:#FF6B6B">2</b></div></div>
+    <div class="kt purple"><label>Avg Handle Time</label><div class="num">4:32</div><div class="sub">Target: 5:00 <span class="pill up">✓ OK</span></div></div>
+  </div>
+
+  <div class="g32">
+    <div>
+      <div class="stitle">Agent Workload &amp; Status</div>
+      <div class="g2">
+        <div class="card">
+          <div class="ctitle">Sales Team</div>
+          <div class="ar"><div class="sd on"></div><div class="av" style="background:#C41230">PS</div><div class="an"><div class="nm">Priya Sharma</div><div class="rl">Sales Executive</div></div><div class="wb"><div class="wf" style="width:90%;background:var(--mg-red)"></div></div><div class="wn" style="color:var(--mg-red)">9/10</div></div>
+          <div class="ar"><div class="sd on"></div><div class="av" style="background:#1A73E8">RV</div><div class="an"><div class="nm">Rahul Verma</div><div class="rl">Sales Executive</div></div><div class="wb"><div class="wf" style="width:70%;background:var(--mg-blue)"></div></div><div class="wn">7/10</div></div>
+          <div class="ar"><div class="sd busy"></div><div class="av" style="background:#F4762E">AR</div><div class="an"><div class="nm">Anjali Rao</div><div class="rl">Pre-Sales</div></div><div class="wb"><div class="wf" style="width:80%;background:var(--mg-orange)"></div></div><div class="wn">8/10</div></div>
+          <div class="ar"><div class="sd on"></div><div class="av" style="background:#9C6FE4">KN</div><div class="an"><div class="nm">Kiran Nair</div><div class="rl">Sales Executive</div></div><div class="wb"><div class="wf" style="width:60%;background:var(--mg-purple)"></div></div><div class="wn">6/10</div></div>
+          <div class="ar"><div class="sd brk"></div><div class="av" style="background:#555">DJ</div><div class="an"><div class="nm">Deepak Joshi</div><div class="rl">Pre-Sales</div></div><div class="wb"><div class="wf" style="width:40%;background:#888"></div></div><div class="wn" style="color:var(--text-muted)">4/10</div></div>
+        </div>
+        <div class="card">
+          <div class="ctitle">Service &amp; Insurance</div>
+          <div class="ar"><div class="sd on"></div><div class="av" style="background:#1A73E8">SK</div><div class="an"><div class="nm">Suresh Kumar</div><div class="rl">Service Advisor</div></div><div class="wb"><div class="wf" style="width:85%;background:var(--mg-blue)"></div></div><div class="wn">8/10</div></div>
+          <div class="ar"><div class="sd busy"></div><div class="av" style="background:#C41230">MP</div><div class="an"><div class="nm">Meera Pillai</div><div class="rl">Service Advisor</div></div><div class="wb"><div class="wf" style="width:100%;background:var(--mg-red)"></div></div><div class="wn" style="color:var(--mg-red)">10/10</div></div>
+          <div class="ar"><div class="sd on"></div><div class="av" style="background:#E8B400">AT</div><div class="an"><div class="nm">Amit Tiwari</div><div class="rl">Service Advisor</div></div><div class="wb"><div class="wf" style="width:65%;background:var(--mg-gold)"></div></div><div class="wn">6/10</div></div>
+          <div class="ar"><div class="sd on"></div><div class="av" style="background:#9C6FE4">AS</div><div class="an"><div class="nm">Arjun Singh</div><div class="rl">Insurance Exec.</div></div><div class="wb"><div class="wf" style="width:70%;background:var(--mg-purple)"></div></div><div class="wn">7/10</div></div>
+          <div class="ar"><div class="sd off"></div><div class="av" style="background:#555">VK</div><div class="an"><div class="nm">Varun Kapoor</div><div class="rl">Insurance Exec.</div></div><div class="wb"><div class="wf" style="width:0%"></div></div><div class="wn" style="color:var(--text-muted)">—</div></div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="stitle">Live Lead Pipeline — All Depts</div>
+      <div class="card">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+          <div class="ps" style="background:rgba(140,140,140,.08);border-color:#555"><div><label>New / Unassigned</label><div class="cnt" style="color:#AAA">28</div></div><div class="dx" style="color:var(--mg-gold)">▲ 6 since 9am</div></div>
+          <div class="ps" style="background:rgba(26,115,232,.08);border-color:var(--mg-blue)"><div><label>Contacted</label><div class="cnt" style="color:var(--mg-blue)">64</div></div><div class="dx" style="color:var(--mg-green)">▲ 18 today</div></div>
+          <div class="ps" style="background:rgba(232,180,0,.08);border-color:var(--mg-gold)"><div><label>Follow-up Pending</label><div class="cnt" style="color:var(--mg-gold)">41</div></div><div class="dx" style="color:var(--mg-red)">⚠ 12 overdue</div></div>
+          <div class="ps" style="background:rgba(244,118,46,.08);border-color:var(--mg-orange)"><div><label>TD / Appt Scheduled</label><div class="cnt" style="color:var(--mg-orange)">14</div></div><div class="dx" style="color:#AAA">Today: 6</div></div>
+          <div class="ps" style="background:rgba(156,111,228,.08);border-color:var(--mg-purple)"><div><label>Negotiation</label><div class="cnt" style="color:var(--mg-purple)">9</div></div><div class="dx" style="color:var(--mg-green)">▲ 3 this week</div></div>
+          <div class="ps" style="background:rgba(29,185,84,.08);border-color:var(--mg-green)"><div><label>Booked / Won</label><div class="cnt" style="color:var(--mg-green)">6</div></div><div class="dx" style="color:#AAA">MTD: 34</div></div>
+        </div>
+        <canvas id="c-pipeline" height="75"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="g3">
+    <div class="card">
+      <div class="ctitle">Channel SLA Compliance</div>
+      <table class="ptbl">
+        <thead><tr><th>Channel</th><th>Avg Response</th><th>Target</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>📞 Inbound Calls</td><td>38 sec</td><td>&lt;45 sec</td><td><div class="sla good">✓ Good</div></td></tr>
+          <tr><td>📞 Outbound Sales</td><td>—</td><td>100/day</td><td><div class="sla good">✓ 214</div></td></tr>
+          <tr><td>💬 WhatsApp</td><td>8 min</td><td>&lt;15 min</td><td><div class="sla good">✓ Good</div></td></tr>
+          <tr><td>📧 Email</td><td>2.4 hrs</td><td>&lt;4 hrs</td><td><div class="sla good">✓ Good</div></td></tr>
+          <tr><td>🔧 Service PSF</td><td>—</td><td>100% in 48h</td><td><div class="sla warn">⚠ 87%</div></td></tr>
+          <tr><td>🛡️ Ins. Renewal Call</td><td>—</td><td>3 attempts</td><td><div class="sla breach">✗ Breach</div></td></tr>
+          <tr><td>🔧 Bay Assignment</td><td>—</td><td>&lt;30 min</td><td><div class="sla breach">✗ 2 breached</div></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card">
+      <div class="ctitle">Live Call Queue <span class="hl" style="color:var(--mg-green)">● Real-time</span></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+        <div style="background:rgba(29,185,84,.08);border:1px solid rgba(29,185,84,.2);border-radius:6px;padding:10px;text-align:center;">
+          <div style="font-size:10px;color:var(--text-muted);">In Queue</div><div style="font-size:28px;font-weight:800;color:var(--mg-green)">2</div>
+          <div style="font-size:10px;color:var(--text-muted);">Avg wait 22s</div>
+        </div>
+        <div style="background:rgba(26,115,232,.08);border:1px solid rgba(26,115,232,.2);border-radius:6px;padding:10px;text-align:center;">
+          <div style="font-size:10px;color:var(--text-muted);">Active Calls</div><div style="font-size:28px;font-weight:800;color:var(--mg-blue)">5</div>
+          <div style="font-size:10px;color:var(--text-muted);">Agents on call</div>
+        </div>
+      </div>
+      <canvas id="c-callqueue" height="90"></canvas>
+    </div>
+    <div class="card">
+      <div class="ctitle">Follow-ups Overdue</div>
+      <div class="fu"><div class="fp hi"></div><div class="ft"><div class="nm">Raj Malhotra — ZS EV</div><div class="mt">Sales · 3 attempts · no answer</div></div><div class="fd ov">OVERDUE</div></div>
+      <div class="fu"><div class="fp hi"></div><div class="ft"><div class="nm">Preethi S. — Renewal 25 Mar</div><div class="mt">Insurance · 2 missed calls</div></div><div class="fd ov">OVERDUE</div></div>
+      <div class="fu"><div class="fp hi"></div><div class="ft"><div class="nm">Farhan Sheikh — PSF pending</div><div class="mt">Service · job done 21 Mar</div></div><div class="fd td">Today 11am</div></div>
+      <div class="fu"><div class="fp md"></div><div class="ft"><div class="nm">Lakshmi Prasad — Hector TD FU</div><div class="mt">Sales · price discussion</div></div><div class="fd td">Today 12pm</div></div>
+      <div class="fu"><div class="fp md"></div><div class="ft"><div class="nm">Gaurav Singh — Gloster booking</div><div class="mt">Sales · finance pending</div></div><div class="fd td">Today 2pm</div></div>
+      <div class="fu"><div class="fp lo"></div><div class="ft"><div class="nm">Rohit Pandey — Cross-sell</div><div class="mt">Sales · delivered 18 Mar</div></div><div class="fd ok">Tomorrow</div></div>
+    </div>
+  </div>
+
+</div><!-- /panel-all -->
+
+
+<!-- ══════════════════════════════════════════════════
+     TAB 2 : SALES
+══════════════════════════════════════════════════ -->
+<div class="panel" id="panel-sales">
+
+  <div class="stitle">Sales Department — Today &amp; MTD</div>
+  <div class="g6">
+    <div class="kt red"><label>Leads Today</label><div class="num">18</div><div class="sub">New: <b>8</b> · Recycled: <b>10</b></div></div>
+    <div class="kt blue"><label>Outbound Calls</label><div class="num">148</div><div class="sub">Connected: <b>112</b> <span class="pill up">75.7%</span></div></div>
+    <div class="kt gold"><label>Walk-ins Today</label><div class="num">24</div><div class="sub">TDs booked: <b>7</b> · Won: <b>2</b></div></div>
+    <div class="kt orange"><label>Test Drives Today</label><div class="num">6</div><div class="sub">Scheduled: <b>8</b> · Done: <b>6</b></div></div>
+    <div class="kt green"><label>MTD Deliveries</label><div class="num">27</div><div class="sub">Target: <b>36</b> <span class="pill warn">75%</span></div></div>
+    <div class="kt purple"><label>Cold Calls MTD</label><div class="num">1,248</div><div class="sub">Target: 1,200 <span class="pill up">✓ Done</span></div></div>
+  </div>
+
+  <div class="g32">
+    <div>
+      <div class="stitle">Sales Agent Workload</div>
+      <div class="card">
+        <div class="ctitle">Pre-Sales &amp; Floor Team <span class="hl" style="color:var(--mg-green)">6 online · 1 break</span></div>
+        <div class="ar"><div class="sd on"></div><div class="av" style="background:#C41230">PS</div><div class="an"><div class="nm">Priya Sharma</div><div class="rl">Sales Exec · 9 leads · 3 TDs today</div></div><div class="wb"><div class="wf" style="width:90%;background:var(--mg-red)"></div></div><div class="wn" style="color:var(--mg-red)">9/10</div></div>
+        <div class="ar"><div class="sd on"></div><div class="av" style="background:#1A73E8">RV</div><div class="an"><div class="nm">Rahul Verma</div><div class="rl">Sales Exec · 7 leads · 1 TD today</div></div><div class="wb"><div class="wf" style="width:70%;background:var(--mg-blue)"></div></div><div class="wn">7/10</div></div>
+        <div class="ar"><div class="sd busy"></div><div class="av" style="background:#F4762E">AR</div><div class="an"><div class="nm">Anjali Rao</div><div class="rl">Pre-Sales · 58 calls made · on call</div></div><div class="wb"><div class="wf" style="width:80%;background:var(--mg-orange)"></div></div><div class="wn">8/10</div></div>
+        <div class="ar"><div class="sd on"></div><div class="av" style="background:#9C6FE4">KN</div><div class="an"><div class="nm">Kiran Nair</div><div class="rl">Sales Exec · 5 leads · 2 TDs today</div></div><div class="wb"><div class="wf" style="width:60%;background:var(--mg-purple)"></div></div><div class="wn">6/10</div></div>
+        <div class="ar"><div class="sd brk"></div><div class="av" style="background:#555">DJ</div><div class="an"><div class="nm">Deepak Joshi</div><div class="rl">Pre-Sales · 42 calls · on break</div></div><div class="wb"><div class="wf" style="width:40%;background:#888"></div></div><div class="wn" style="color:var(--text-muted)">4/10</div></div>
+        <div class="ar"><div class="sd on"></div><div class="av" style="background:#1DB954">SM</div><div class="an"><div class="nm">Sneha Mehta</div><div class="rl">Pre-Sales · 51 calls · 2 walk-ins</div></div><div class="wb"><div class="wf" style="width:75%;background:var(--mg-green)"></div></div><div class="wn">7/10</div></div>
+      </div>
+    </div>
+    <div>
+      <div class="stitle">Sales Pipeline — Today</div>
+      <div class="card" style="margin-bottom:12px;">
+        <div class="ps" style="background:rgba(140,140,140,.08);border-color:#555"><div><label>New / Unassigned</label><div class="cnt" style="color:#AAA">14</div></div><div class="dx" style="color:var(--mg-gold)">▲ 5 in last hr</div></div>
+        <div class="ps" style="background:rgba(26,115,232,.08);border-color:var(--mg-blue)"><div><label>Contacted (Today)</label><div class="cnt" style="color:var(--mg-blue)">112</div></div><div class="dx" style="color:var(--mg-green)">outbound connected</div></div>
+        <div class="ps" style="background:rgba(232,180,0,.08);border-color:var(--mg-gold)"><div><label>Follow-up Pending</label><div class="cnt" style="color:var(--mg-gold)">28</div></div><div class="dx" style="color:var(--mg-red)">⚠ 8 overdue</div></div>
+        <div class="ps" style="background:rgba(244,118,46,.08);border-color:var(--mg-orange)"><div><label>TD Scheduled Today</label><div class="cnt" style="color:var(--mg-orange)">8</div></div><div class="dx" style="color:#AAA">6 done · 2 pending</div></div>
+        <div class="ps" style="background:rgba(156,111,228,.08);border-color:var(--mg-purple)"><div><label>In Negotiation</label><div class="cnt" style="color:var(--mg-purple)">9</div></div><div class="dx" style="color:var(--mg-green)">▲ 3 this week</div></div>
+        <div class="ps" style="background:rgba(29,185,84,.08);border-color:var(--mg-green)"><div><label>Booked Today</label><div class="cnt" style="color:var(--mg-green)">2</div></div><div class="dx" style="color:#AAA">MTD total: 34</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="g3">
+    <div class="card">
+      <div class="ctitle">MTD Target vs Actual — Sales</div>
+      <div class="sr"><span>Leads Generated</span><div style="display:flex;gap:6px;"><span class="pill info">T: 400</span><span class="pill up">A: 342</span></div></div>
+      <div class="sr"><span>Test Drives</span><div style="display:flex;gap:6px;"><span class="pill info">T: 120</span><span class="pill warn">A: 88</span></div></div>
+      <div class="sr"><span>Bookings</span><div style="display:flex;gap:6px;"><span class="pill info">T: 40</span><span class="pill warn">A: 34</span></div></div>
+      <div class="sr"><span>Deliveries</span><div style="display:flex;gap:6px;"><span class="pill info">T: 36</span><span class="pill down">A: 27</span></div></div>
+      <div class="sr"><span>Cold Calls</span><div style="display:flex;gap:6px;"><span class="pill info">T: 1,200</span><span class="pill up">A: 1,248</span></div></div>
+      <div class="sr"><span>Cross-sell Leads</span><div style="display:flex;gap:6px;"><span class="pill info">T: 60</span><span class="pill warn">A: 48</span></div></div>
+      <div class="sr"><span>Conv. Rate (Lead→Del)</span><div><span class="pill warn">7.9%</span><span style="font-size:10px;color:var(--text-muted);margin-left:4px">Target 9%</span></div></div>
+    </div>
+    <div class="card">
+      <div class="ctitle">Channel Split — Sales Leads MTD</div>
+      <canvas id="c-sales-channel" height="160"></canvas>
+    </div>
+    <div class="card">
+      <div class="ctitle">Sales Follow-ups Due Today</div>
+      <div class="fu"><div class="fp hi"></div><div class="ft"><div class="nm">Raj Malhotra — ZS EV Excite</div><div class="mt">3rd attempt · no answer · Hot lead</div></div><div class="fd ov">OVERDUE</div></div>
+      <div class="fu"><div class="fp md"></div><div class="ft"><div class="nm">Lakshmi Prasad — Hector TD FU</div><div class="mt">TD done 22 Mar · price disc.</div></div><div class="fd td">12:00 PM</div></div>
+      <div class="fu"><div class="fp md"></div><div class="ft"><div class="nm">Gaurav Singh — Gloster Booking</div><div class="mt">Negotiation · finance approval pend.</div></div><div class="fd td">2:00 PM</div></div>
+      <div class="fu"><div class="fp md"></div><div class="ft"><div class="nm">Vikram Shah — Astor TD today</div><div class="mt">TD at 11am · follow up post-TD</div></div><div class="fd td">1:00 PM</div></div>
+      <div class="fu"><div class="fp lo"></div><div class="ft"><div class="nm">Rohit Pandey — Cross-sell accessories</div><div class="mt">Delivery done 18 Mar</div></div><div class="fd ok">Tomorrow</div></div>
+      <div class="fu"><div class="fp lo"></div><div class="ft"><div class="nm">Meena Krishnan — Gloster enquiry</div><div class="mt">New inbound lead · first contact</div></div><div class="fd ok">Today EOD</div></div>
+    </div>
+  </div>
+
+  <div class="g2">
+    <div class="card">
+      <div class="ctitle">Test Drive Schedule — Today</div>
+      <div class="ap"><div class="at">09:30</div><div class="ai"><div class="nm">Arjun Singh — MH04 Enquiry</div><div class="mt">ZS EV Excite · Advisor: Priya S.</div></div><div class="as done">✓ Done</div></div>
+      <div class="ap"><div class="at">10:00</div><div class="ai"><div class="nm">Sunita Roy — Walk-in</div><div class="mt">Hector · Advisor: Rahul V.</div></div><div class="as done">✓ Done</div></div>
+      <div class="ap"><div class="at">10:30</div><div class="ai"><div class="nm">Manoj Tiwari — WhatsApp Lead</div><div class="mt">Astor · Advisor: Kiran N.</div></div><div class="as done">✓ Done</div></div>
+      <div class="ap"><div class="at">11:00</div><div class="ai"><div class="nm">Vikram Shah — Walk-in</div><div class="mt">Astor Sharp · Advisor: Priya S.</div></div><div class="as cin">Checked In</div></div>
+      <div class="ap"><div class="at">12:30</div><div class="ai"><div class="nm">Pooja Nair — Social Media Lead</div><div class="mt">Hector Plus · Advisor: Rahul V.</div></div><div class="as pend">Upcoming</div></div>
+      <div class="ap"><div class="at">14:00</div><div class="ai"><div class="nm">Suresh Pillai — Cold Call Lead</div><div class="mt">Gloster · Advisor: Kiran N.</div></div><div class="as pend">Upcoming</div></div>
+      <div class="ap"><div class="at">15:00</div><div class="ai"><div class="nm">Anita Sharma — Referral</div><div class="mt">ZS EV Pro · Advisor: Sneha M.</div></div><div class="as pend">Upcoming</div></div>
+      <div class="ap"><div class="at">16:30</div><div class="ai"><div class="nm">Dev Kapoor — Walk-in</div><div class="mt">Comet EV · Advisor: TBD</div></div><div class="as pend">Upcoming</div></div>
+    </div>
+    <div class="card">
+      <div class="ctitle">Weekly Sales Activity Trend</div>
+      <canvas id="c-sales-trend" height="200"></canvas>
+    </div>
+  </div>
+
+</div><!-- /panel-sales -->
+
+
+<!-- ══════════════════════════════════════════════════
+     TAB 3 : SERVICE
+══════════════════════════════════════════════════ -->
+<div class="panel" id="panel-service">
+
+  <div class="stitle">Service Department — Today &amp; MTD</div>
+  <div class="g6">
+    <div class="kt blue"><label>Appointments Today</label><div class="num">18</div><div class="sub">Done: <b>8</b> · In-bay: <b>3</b> · Pend: <b>7</b></div></div>
+    <div class="kt orange"><label>Awaiting Bay</label><div class="num" style="color:var(--mg-orange)">2</div><div class="sub" style="color:#FF6B6B">SLA breach risk ⚠</div></div>
+    <div class="kt green"><label>Jobs Completed MTD</label><div class="num">196</div><div class="sub">Of 218 booked <span class="pill up">89.9%</span></div></div>
+    <div class="kt gold"><label>PSF Calls MTD</label><div class="num">174</div><div class="sub">Target: 200 <span class="pill warn">87%</span></div></div>
+    <div class="kt purple"><label>Avg CSI Score</label><div class="num">4.6</div><div class="sub">Target: 4.5 <span class="pill up">✓ Above</span></div></div>
+    <div class="kt red"><label>MTD Revenue</label><div class="num">₹38.4L</div><div class="sub">Target: ₹42L <span class="pill warn">91.4%</span></div></div>
+  </div>
+
+  <div class="g23">
+    <div>
+      <div class="stitle">Today's Service Appointments</div>
+      <div class="card">
+        <div class="ap"><div class="at">09:00</div><div class="ai"><div class="nm">Ramesh Iyer — MH02 AB 1234</div><div class="mt">Hector · Regular Service + AC Check · Suresh Kumar</div></div><div class="as inbay">In Bay</div></div>
+        <div class="ap"><div class="at">09:30</div><div class="ai"><div class="nm">Sunita Patel — MH04 CD 5678</div><div class="mt">ZS EV · Battery Diagnostic · Meera Pillai</div></div><div class="as inbay">In Bay</div></div>
+        <div class="ap"><div class="at">10:00</div><div class="ai"><div class="nm">Vinod Sharma — MH01 EF 9012</div><div class="mt">Astor · Tyre Replacement · Amit Tiwari</div></div><div class="as cin">Checked In</div></div>
+        <div class="ap"><div class="at">10:30</div><div class="ai"><div class="nm">Kavita Desai — MH03 GH 3456</div><div class="mt">Gloster · Annual Service · ⚠ Unassigned</div></div><div class="as wait">⚠ Awaiting Bay</div></div>
+        <div class="ap"><div class="at">11:00</div><div class="ai"><div class="nm">Anil Kumar — MH05 IJ 7890</div><div class="mt">Hector Plus · Accident Repair · Suresh Kumar</div></div><div class="as wait">⚠ Awaiting Bay</div></div>
+        <div class="ap"><div class="at">11:30</div><div class="ai"><div class="nm">Pooja Nair — MH06 KL 1234</div><div class="mt">Comet EV · Software Update · Meera Pillai</div></div><div class="as pend">Upcoming</div></div>
+        <div class="ap"><div class="at">12:00</div><div class="ai"><div class="nm">Sanjay Mehta — MH07 MN 5678</div><div class="mt">ZS EV · Warranty Claim · Amit Tiwari</div></div><div class="as pend">Upcoming</div></div>
+        <div class="ap"><div class="at">12:30</div><div class="ai"><div class="nm">Rekha Singh — MH08 PQ 9012</div><div class="mt">Hector · Oil Change + Brake Check · Suresh Kumar</div></div><div class="as pend">Upcoming</div></div>
+        <div class="ap"><div class="at">14:00</div><div class="ai"><div class="nm">Aryan Shah — MH09 RS 3456</div><div class="mt">Astor · AC Compressor · Meera Pillai</div></div><div class="as pend">Upcoming</div></div>
+        <div class="ap"><div class="at">15:00</div><div class="ai"><div class="nm">Priya Bose — MH10 TU 7890</div><div class="mt">ZS EV · General Checkup · Amit Tiwari</div></div><div class="as pend">Upcoming</div></div>
+        <div class="alert-box err">⚠ 2 vehicles awaiting bay — Kavita Desai &amp; Anil Kumar. Immediate advisor reallocation required.</div>
+      </div>
+    </div>
+    <div>
+      <div class="stitle">Bay Status &amp; Workload</div>
+      <div class="card" style="margin-bottom:12px;">
+        <div class="ctitle">Service Advisor Load</div>
+        <div class="ar"><div class="sd busy"></div><div class="av" style="background:#C41230">MP</div><div class="an"><div class="nm">Meera Pillai</div><div class="rl">3 active · 2 upcoming · FULL</div></div><div class="wb"><div class="wf" style="width:100%;background:var(--mg-red)"></div></div><div class="wn" style="color:var(--mg-red)">5/5</div></div>
+        <div class="ar"><div class="sd on"></div><div class="av" style="background:#1A73E8">SK</div><div class="an"><div class="nm">Suresh Kumar</div><div class="rl">2 active · 2 upcoming</div></div><div class="wb"><div class="wf" style="width:80%;background:var(--mg-blue)"></div></div><div class="wn">4/5</div></div>
+        <div class="ar"><div class="sd on"></div><div class="av" style="background:#E8B400">AT</div><div class="an"><div class="nm">Amit Tiwari</div><div class="rl">2 active · 3 upcoming</div></div><div class="wb"><div class="wf" style="width:80%;background:var(--mg-gold)"></div></div><div class="wn">4/5</div></div>
+        <div class="alert-box warn">⚠ Meera Pillai at full capacity — 2 pending vehicles need reassignment.</div>
+      </div>
+      <div class="card">
+        <div class="ctitle">Bay Occupancy</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;">
+          <div style="background:rgba(26,115,232,.15);border:1px solid rgba(26,115,232,.3);border-radius:6px;padding:8px;text-align:center;font-size:10px;"><div style="font-size:16px;font-weight:800;color:var(--mg-blue)">Bay 1</div>Ramesh Iyer<br><span style="color:var(--text-muted)">Hector Service</span></div>
+          <div style="background:rgba(26,115,232,.15);border:1px solid rgba(26,115,232,.3);border-radius:6px;padding:8px;text-align:center;font-size:10px;"><div style="font-size:16px;font-weight:800;color:var(--mg-blue)">Bay 2</div>Sunita Patel<br><span style="color:var(--text-muted)">ZS EV Diag.</span></div>
+          <div style="background:rgba(29,185,84,.15);border:1px solid rgba(29,185,84,.3);border-radius:6px;padding:8px;text-align:center;font-size:10px;"><div style="font-size:16px;font-weight:800;color:var(--mg-green)">Bay 3</div>Vinod Sharma<br><span style="color:var(--text-muted)">Astor Tyres</span></div>
+          <div style="background:rgba(232,180,0,.1);border:1px solid rgba(232,180,0,.3);border-radius:6px;padding:8px;text-align:center;font-size:10px;"><div style="font-size:16px;font-weight:800;color:var(--mg-gold)">Bay 4</div>⏳ Waiting<br><span style="color:var(--text-muted)">Kavita Desai</span></div>
+          <div style="background:rgba(232,180,0,.1);border:1px solid rgba(232,180,0,.3);border-radius:6px;padding:8px;text-align:center;font-size:10px;"><div style="font-size:16px;font-weight:800;color:var(--mg-gold)">Bay 5</div>⏳ Waiting<br><span style="color:var(--text-muted)">Anil Kumar</span></div>
+          <div style="background:rgba(29,185,84,.08);border:1px solid rgba(29,185,84,.2);border-radius:6px;padding:8px;text-align:center;font-size:10px;"><div style="font-size:16px;font-weight:800;color:#555">Bay 6</div><span style="color:var(--mg-green)">✓ Free</span><br>&nbsp;</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="g3">
+    <div class="card">
+      <div class="ctitle">PSF Calls — Status</div>
+      <canvas id="c-psf" height="130"></canvas>
+      <div style="margin-top:10px;">
+        <div class="sr"><span>PSF calls done MTD</span><b>174</b></div>
+        <div class="sr"><span>Pending (in 48h window)</span><b style="color:var(--mg-gold)">26</b></div>
+        <div class="sr"><span>Avg satisfaction (PSF)</span><b style="color:var(--mg-green)">4.6 / 5</b></div>
+        <div class="sr"><span>Repeat complaints</span><b style="color:var(--mg-red)">3</b></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="ctitle">Service Revenue — MTD Weekly Trend</div>
+      <canvas id="c-svc-rev" height="160"></canvas>
+    </div>
+    <div class="card">
+      <div class="ctitle">Service Follow-ups Pending</div>
+      <div class="fu"><div class="fp hi"></div><div class="ft"><div class="nm">Farhan Sheikh — PSF overdue</div><div class="mt">Job card closed 21 Mar · no feedback yet</div></div><div class="fd ov">OVERDUE</div></div>
+      <div class="fu"><div class="fp hi"></div><div class="ft"><div class="nm">Priya Menon — Warranty follow-up</div><div class="mt">Repair done 20 Mar · 2nd escalation</div></div><div class="fd ov">OVERDUE</div></div>
+      <div class="fu"><div class="fp md"></div><div class="ft"><div class="nm">Ravi Sharma — AC repair PSF</div><div class="mt">Completed 22 Mar · PSF call due</div></div><div class="fd td">Today 11am</div></div>
+      <div class="fu"><div class="fp md"></div><div class="ft"><div class="nm">Geeta Rao — Tyre job PSF</div><div class="mt">Done today morning · call due PM</div></div><div class="fd td">Today 3pm</div></div>
+      <div class="fu"><div class="fp lo"></div><div class="ft"><div class="nm">Ashok Nair — Annual service review</div><div class="mt">Major job closed 19 Mar</div></div><div class="fd ok">Tomorrow</div></div>
+    </div>
+  </div>
+
+</div><!-- /panel-service -->
+
+
+<!-- ══════════════════════════════════════════════════
+     TAB 4 : INSURANCE
+══════════════════════════════════════════════════ -->
+<div class="panel" id="panel-insurance">
+
+  <div class="stitle">Insurance Department — Today &amp; MTD</div>
+  <div class="g6">
+    <div class="kt gold"><label>Renewals Due MTD</label><div class="num">148</div><div class="sub">Done: <b>89</b> · Pending: <b>59</b></div></div>
+    <div class="kt red"><label>Renewals Lapsed</label><div class="num" style="color:#FF6B6B">12</div><div class="sub">Need immediate escalation</div></div>
+    <div class="kt green"><label>New Policies MTD</label><div class="num">34</div><div class="sub">Target: 40 <span class="pill warn">85%</span></div></div>
+    <div class="kt blue"><label>Cold Calls MTD</label><div class="num">622</div><div class="sub">Connected: <b>388</b> <span class="pill up">62.4%</span></div></div>
+    <div class="kt orange"><label>Avg Premium</label><div class="num">₹9,842</div><div class="sub">MTD collected: <b>₹12.1L</b></div></div>
+    <div class="kt purple"><label>Renewal Conv. Rate</label><div class="num">60.1%</div><div class="sub">Target: 70% <span class="pill down">▼ 10%</span></div></div>
+  </div>
+
+  <div class="g32">
+    <div>
+      <div class="stitle">Renewal Pipeline</div>
+      <div class="card">
+        <div class="ctitle">Renewals by Status <span class="hl">148 total MTD</span></div>
+        <div class="ps" style="background:rgba(29,185,84,.08);border-color:var(--mg-green)"><div><label>Renewed — Completed</label><div class="cnt" style="color:var(--mg-green)">89</div></div><div class="dx" style="color:#AAA">₹8.76L collected</div></div>
+        <div class="ps" style="background:rgba(26,115,232,.08);border-color:var(--mg-blue)"><div><label>In Discussion</label><div class="cnt" style="color:var(--mg-blue)">22</div></div><div class="dx" style="color:var(--mg-gold)">Follow-up today</div></div>
+        <div class="ps" style="background:rgba(232,180,0,.08);border-color:var(--mg-gold)"><div><label>Contacted — No Response</label><div class="cnt" style="color:var(--mg-gold)">25</div></div><div class="dx" style="color:var(--mg-red)">2nd/3rd attempt due</div></div>
+        <div class="ps" style="background:rgba(196,18,48,.08);border-color:var(--mg-red)"><div><label>Not Contacted Yet</label><div class="cnt" style="color:#FF6B6B">12</div></div><div class="dx" style="color:var(--mg-red)">⚠ Urgent</div></div>
+        <div class="ps" style="background:rgba(140,140,140,.08);border-color:#555"><div><label>Lapsed / Expired</label><div class="cnt" style="color:#888">12</div></div><div class="dx" style="color:#AAA">Recovery attempt needed</div></div>
+        <canvas id="c-ins-donut" height="110" style="margin-top:10px;"></canvas>
+      </div>
+    </div>
+    <div>
+      <div class="stitle">Insurance Agent Workload</div>
+      <div class="card" style="margin-bottom:12px;">
+        <div class="ctitle">Team Status <span class="hl" style="color:var(--mg-gold)">3 agents</span></div>
+        <div class="ar"><div class="sd on"></div><div class="av" style="background:#9C6FE4">AS</div><div class="an"><div class="nm">Arjun Singh</div><div class="rl">Insurance Exec · 42 calls today · 8 renewals</div></div><div class="wb"><div class="wf" style="width:70%;background:var(--mg-purple)"></div></div><div class="wn">7/10</div></div>
+        <div class="ar"><div class="sd on"></div><div class="av" style="background:#1DB954">NG</div><div class="an"><div class="nm">Neha Gupta</div><div class="rl">Insurance Exec · 38 calls today · 6 renewals</div></div><div class="wb"><div class="wf" style="width:55%;background:var(--mg-green)"></div></div><div class="wn">5/10</div></div>
+        <div class="ar"><div class="sd off"></div><div class="av" style="background:#555">VK</div><div class="an"><div class="nm">Varun Kapoor</div><div class="rl">Insurance Exec · Absent today</div></div><div class="wb"><div class="wf" style="width:0%"></div></div><div class="wn" style="color:var(--text-muted)">—</div></div>
+        <div class="alert-box err">⚠ Varun Kapoor absent — 20+ renewals due today unassigned. Reallocate to Arjun &amp; Neha.</div>
+      </div>
+      <div class="card">
+        <div class="ctitle">Cold Call Activity — Today</div>
+        <canvas id="c-ins-calls" height="100"></canvas>
+        <div style="margin-top:8px;">
+          <div class="sr"><span>Calls made today</span><b>80</b></div>
+          <div class="sr"><span>Connected</span><b style="color:var(--mg-green)">54</b></div>
+          <div class="sr"><span>Interested / Callback</span><b style="color:var(--mg-gold)">18</b></div>
+          <div class="sr"><span>Renewed on call</span><b style="color:var(--mg-green)">6</b></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="g3">
+    <div class="card">
+      <div class="ctitle">MTD Target vs Actual — Insurance</div>
+      <div class="sr"><span>Renewal Target</span><div style="display:flex;gap:5px;"><span class="pill info">T: 148</span><span class="pill warn">A: 89</span><span class="pill down">–59</span></div></div>
+      <div class="sr"><span>New Policies Target</span><div style="display:flex;gap:5px;"><span class="pill info">T: 40</span><span class="pill warn">A: 34</span><span class="pill down">–6</span></div></div>
+      <div class="sr"><span>Revenue Target</span><div style="display:flex;gap:5px;"><span class="pill info">T: ₹15L</span><span class="pill warn">A: ₹12.1L</span></div></div>
+      <div class="sr"><span>Cold Calls Target</span><div style="display:flex;gap:5px;"><span class="pill info">T: 600</span><span class="pill up">A: 622</span><span class="pill up">✓</span></div></div>
+      <div class="sr"><span>Conversion Rate</span><div style="display:flex;gap:5px;"><span class="pill info">T: 70%</span><span class="pill down">A: 60.1%</span></div></div>
+      <div class="sr"><span>Avg Premium</span><div style="display:flex;gap:5px;"><span class="pill info">T: ₹10,000</span><span class="pill warn">A: ₹9,842</span></div></div>
+      <div class="sr"><span>Lapse Rate</span><div style="display:flex;gap:5px;"><span class="pill info">T: &lt;5%</span><span class="pill down">A: 8.1%</span></div></div>
+    </div>
+    <div class="card">
+      <div class="ctitle">Monthly Renewals Trend</div>
+      <canvas id="c-ins-trend" height="160"></canvas>
+    </div>
+    <div class="card">
+      <div class="ctitle">Urgent Renewal Follow-ups</div>
+      <div class="fu"><div class="fp hi"></div><div class="ft"><div class="nm">Preethi Subramaniam — Policy #4421</div><div class="mt">Renewal due 25 Mar · 2 missed calls</div></div><div class="fd ov">OVERDUE</div></div>
+      <div class="fu"><div class="fp hi"></div><div class="ft"><div class="nm">Sunil Verma — Policy #3812</div><div class="mt">Renewal due 24 Mar · not contacted</div></div><div class="fd ov">OVERDUE</div></div>
+      <div class="fu"><div class="fp hi"></div><div class="ft"><div class="nm">Kavita Reddy — Policy #2978</div><div class="mt">Lapsed 20 Mar · recovery attempt</div></div><div class="fd ov">LAPSED</div></div>
+      <div class="fu"><div class="fp md"></div><div class="ft"><div class="nm">Rohit Joshi — Policy #5512</div><div class="mt">Due 26 Mar · 1st contact made</div></div><div class="fd td">Today 2pm</div></div>
+      <div class="fu"><div class="fp md"></div><div class="ft"><div class="nm">Divya Krishnan — Add-on quote</div><div class="mt">New delivery follow-up</div></div><div class="fd td">Today 3pm</div></div>
+      <div class="fu"><div class="fp lo"></div><div class="ft"><div class="nm">Anjana Bose — Policy #6024</div><div class="mt">Due 28 Mar · SMS sent</div></div><div class="fd ok">25 Mar</div></div>
+    </div>
+  </div>
+
+</div><!-- /panel-insurance -->
+
+<div class="footer">JMPL CRM · Operations &amp; Supervisor Dashboard · Refreshes every 60 seconds · © 2026 MG Jubilant Motorworks Pvt. Ltd.</div>
+
+<script>
+// Clock
+function updateClock(){ document.getElementById('clk').textContent = new Date().toLocaleTimeString('en-IN'); }
+setInterval(updateClock,1000); updateClock();
+
+// TAB SWITCHING
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    const target = tab.dataset.tab;
+    // update tab active states
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    // show correct panel
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.getElementById('panel-' + target).classList.add('active');
+    // lazy-render charts for that tab
+    renderCharts(target);
+  });
+});
+
+const tk = { color:'#8A9BAE', font:{size:10} };
+const gl = { color:'rgba(46,58,78,0.8)' };
+const rendered = {};
+
+function renderCharts(tab) {
+  if(rendered[tab]) return;
+  rendered[tab] = true;
+
+  if(tab === 'all') {
+    // Already rendered below (on load)
+  }
+
+  if(tab === 'sales') {
+    new Chart(document.getElementById('c-sales-channel'), {
+      type:'doughnut',
+      data:{ labels:['Walk-in','Telephony','WhatsApp','Social Media','Email','Referral'],
+        datasets:[{ data:[22,28,24,14,8,4],
+          backgroundColor:['#C41230','#4CAF50','#25D366','#E91E8C','#1A73E8','#E8B400'],
+          borderWidth:2, borderColor:'#1E2430' }]},
+      options:{ responsive:true, cutout:'60%',
+        plugins:{ legend:{ position:'bottom', labels:{ color:'#8A9BAE', font:{size:9}, boxWidth:8, padding:5 }}}}
+    });
+    new Chart(document.getElementById('c-sales-trend'), {
+      type:'line',
+      data:{ labels:['Mon','Tue','Wed','Thu','Fri','Sat','Today'],
+        datasets:[
+          { label:'Calls Made', data:[180,210,190,220,205,175,148], borderColor:'#4CAF50', backgroundColor:'rgba(76,175,80,.1)', tension:0.4, fill:true, pointRadius:3 },
+          { label:'TDs Done', data:[8,12,10,14,9,11,6], borderColor:'#F4762E', backgroundColor:'rgba(244,118,46,.1)', tension:0.4, fill:true, pointRadius:3 },
+          { label:'Walk-ins', data:[18,22,19,25,21,28,24], borderColor:'#C41230', backgroundColor:'rgba(196,18,48,.1)', tension:0.4, fill:true, pointRadius:3 }
+        ]},
+      options:{ responsive:true,
+        plugins:{ legend:{ labels:{ color:'#8A9BAE', font:{size:9}, boxWidth:8 }}},
+        scales:{ x:{ grid:{display:false}, ticks:tk }, y:{ grid:gl, ticks:tk, beginAtZero:true }}}
+    });
+  }
+
+  if(tab === 'service') {
+    new Chart(document.getElementById('c-psf'), {
+      type:'doughnut',
+      data:{ labels:['PSF Done','Pending (in window)','Overdue'],
+        datasets:[{ data:[174,20,6],
+          backgroundColor:['#1DB954','#E8B400','#C41230'],
+          borderWidth:2, borderColor:'#1E2430' }]},
+      options:{ responsive:true, cutout:'60%',
+        plugins:{ legend:{ position:'bottom', labels:{ color:'#8A9BAE', font:{size:9}, boxWidth:8, padding:4 }}}}
+    });
+    new Chart(document.getElementById('c-svc-rev'), {
+      type:'bar',
+      data:{ labels:['Wk 1','Wk 2','Wk 3','Wk 4 (Cur)'],
+        datasets:[
+          { label:'Labour', data:[8.2,9.4,10.1,7.8], backgroundColor:'rgba(26,115,232,.7)', borderRadius:4 },
+          { label:'Parts', data:[3.4,4.1,3.8,3.1], backgroundColor:'rgba(232,180,0,.7)', borderRadius:4 },
+          { label:'Accessories', data:[1.2,1.8,1.4,0.9], backgroundColor:'rgba(29,185,84,.7)', borderRadius:4 }
+        ]},
+      options:{ responsive:true,
+        plugins:{ legend:{ labels:{ color:'#8A9BAE', font:{size:9}, boxWidth:8 }}},
+        scales:{ x:{ grid:{display:false}, ticks:tk }, y:{ grid:gl, ticks:{ ...tk, callback: v => '₹'+v+'L' }, beginAtZero:true, stacked:false }}}
+    });
+  }
+
+  if(tab === 'insurance') {
+    new Chart(document.getElementById('c-ins-donut'), {
+      type:'doughnut',
+      data:{ labels:['Renewed','In Discussion','No Response','Not Contacted','Lapsed'],
+        datasets:[{ data:[89,22,25,12,12],
+          backgroundColor:['#1DB954','#1A73E8','#E8B400','#F4762E','#C41230'],
+          borderWidth:2, borderColor:'#1E2430' }]},
+      options:{ responsive:true, cutout:'60%',
+        plugins:{ legend:{ position:'right', labels:{ color:'#8A9BAE', font:{size:9}, boxWidth:8, padding:6 }}}}
+    });
+    new Chart(document.getElementById('c-ins-calls'), {
+      type:'bar',
+      data:{ labels:['8am','9am','10am','11am','12pm'],
+        datasets:[
+          { label:'Calls Made', data:[12,18,16,20,14], backgroundColor:'rgba(156,111,228,.7)', borderRadius:3 },
+          { label:'Connected', data:[8,12,10,14,10], backgroundColor:'rgba(29,185,84,.7)', borderRadius:3 },
+          { label:'Renewed', data:[1,2,1,2,0], backgroundColor:'rgba(232,180,0,.7)', borderRadius:3 }
+        ]},
+      options:{ responsive:true,
+        plugins:{ legend:{ labels:{ color:'#8A9BAE', font:{size:9}, boxWidth:8 }}},
+        scales:{ x:{ grid:{display:false}, ticks:tk }, y:{ grid:gl, ticks:tk, beginAtZero:true }}}
+    });
+    new Chart(document.getElementById('c-ins-trend'), {
+      type:'line',
+      data:{ labels:['Oct','Nov','Dec','Jan','Feb','Mar'],
+        datasets:[
+          { label:'Due', data:[120,135,128,142,138,148], borderColor:'#555', borderDash:[4,3], tension:0.3, pointRadius:3 },
+          { label:'Renewed', data:[92,108,98,118,112,89], borderColor:'#E8B400', backgroundColor:'rgba(232,180,0,.1)', tension:0.4, fill:true, pointRadius:3 },
+          { label:'New Policies', data:[28,32,30,36,38,34], borderColor:'#1DB954', backgroundColor:'rgba(29,185,84,.1)', tension:0.4, fill:true, pointRadius:3 }
+        ]},
+      options:{ responsive:true,
+        plugins:{ legend:{ labels:{ color:'#8A9BAE', font:{size:9}, boxWidth:8 }}},
+        scales:{ x:{ grid:{display:false}, ticks:tk }, y:{ grid:gl, ticks:tk, beginAtZero:true }}}
+    });
+  }
+}
+
+// Render ALL tab charts on load
+(function() {
+  rendered['all'] = true;
+  new Chart(document.getElementById('c-pipeline'), {
+    type:'bar',
+    data:{ labels:['Sales','Service','Insurance'],
+      datasets:[
+        { label:'New', data:[28,5,12], backgroundColor:'rgba(140,140,140,.5)', borderRadius:2 },
+        { label:'Contacted/Booked', data:[64,18,0], backgroundColor:'rgba(26,115,232,.7)', borderRadius:2 },
+        { label:'Follow-up', data:[41,8,18], backgroundColor:'rgba(232,180,0,.7)', borderRadius:2 },
+        { label:'TD/Appt/In-Discussion', data:[14,0,22], backgroundColor:'rgba(244,118,46,.7)', borderRadius:2 },
+        { label:'Won/Completed', data:[15,196,89], backgroundColor:'rgba(29,185,84,.7)', borderRadius:2 }
+      ]},
+    options:{ indexAxis:'y', responsive:true,
+      plugins:{ legend:{ labels:{ color:'#8A9BAE', font:{size:9}, boxWidth:8, padding:5 }}},
+      scales:{ x:{ grid:gl, ticks:tk, stacked:true }, y:{ grid:{display:false}, ticks:{ color:'#8A9BAE', font:{size:11} }, stacked:true }}}
+  });
+  new Chart(document.getElementById('c-callqueue'), {
+    type:'bar',
+    data:{ labels:['8am','9am','10am','11am','12pm'],
+      datasets:[
+        { label:'Inbound', data:[12,22,18,20,14], backgroundColor:'rgba(26,115,232,.7)', borderRadius:3 },
+        { label:'Outbound', data:[30,45,38,52,49], backgroundColor:'rgba(196,18,48,.7)', borderRadius:3 },
+        { label:'Missed', data:[2,1,3,1,0], backgroundColor:'rgba(232,180,0,.7)', borderRadius:3 }
+      ]},
+    options:{ responsive:true,
+      plugins:{ legend:{ labels:{ color:'#8A9BAE', font:{size:9}, boxWidth:8 }}},
+      scales:{ x:{ grid:{display:false}, ticks:tk }, y:{ grid:gl, ticks:tk, beginAtZero:true }}}
+  });
+})();
+</script>
+</body>
+</html>
