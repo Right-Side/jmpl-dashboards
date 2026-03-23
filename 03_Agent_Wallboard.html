@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JMPL Agent Wallboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --mg-red: #C41230;
+    --mg-dark: #0F1419;
+    --mg-card: #161D27;
+    --mg-card2: #1C2535;
+    --mg-gold: #E8B400;
+    --mg-green: #1DB954;
+    --mg-blue: #1A73E8;
+    --mg-orange: #F4762E;
+    --mg-purple: #9C6FE4;
+    --text-light: #FFFFFF;
+    --text-muted: #7A8B9E;
+    --border: #243044;
+    --border-light: rgba(36,48,68,0.7);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Segoe UI',Arial,sans-serif; background:var(--mg-dark); color:var(--text-light); font-size:13px; }
+
+  /* HEADER */
+  .header {
+    background: linear-gradient(135deg, #0A0E14 0%, #131B26 100%);
+    border-bottom: 2px solid var(--mg-green);
+    padding: 0 20px;
+    display: flex; align-items: center; justify-content: space-between;
+    height: 56px; position: sticky; top:0; z-index:100;
+  }
+  .mg-logo { background:var(--mg-red); color:white; font-size:17px; font-weight:900; padding:5px 12px; letter-spacing:2px; border-radius:3px; }
+  .header-mid { text-align:center; }
+  .header-mid h2 { font-size:13px; font-weight:700; color:#64DD17; text-transform:uppercase; letter-spacing:2px; }
+  .header-mid p { font-size:10px; color:var(--text-muted); }
+  .header-right { display:flex; align-items:center; gap:14px; }
+  .live-dot { width:8px; height:8px; background:var(--mg-green); border-radius:50%; animation:pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  .agent-chip { display:flex; align-items:center; gap:8px; background:rgba(29,185,84,0.1); border:1px solid rgba(29,185,84,0.3); padding:5px 12px; border-radius:20px; }
+  .agent-chip .avatar { width:28px; height:28px; border-radius:50%; background:var(--mg-green); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:800; color:white; }
+  .agent-chip .name { font-size:12px; font-weight:700; }
+  .agent-chip .dept { font-size:10px; color:var(--text-muted); }
+
+  /* MAIN */
+  .main { padding:14px 20px; display:grid; grid-template-columns:280px 1fr 260px; gap:14px; min-height:calc(100vh - 56px); }
+
+  /* LEFT COLUMN */
+  .left-col { display:flex; flex-direction:column; gap:12px; }
+
+  /* RIGHT COLUMN */
+  .right-col { display:flex; flex-direction:column; gap:12px; }
+
+  /* CENTER COLUMN */
+  .center-col { display:flex; flex-direction:column; gap:12px; }
+
+  .card { background:var(--mg-card); border:1px solid var(--border); border-radius:8px; padding:12px 14px; }
+  .card-title { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:1.5px; color:var(--text-muted); margin-bottom:10px; display:flex; align-items:center; justify-content:space-between; }
+  .card-title .hl { font-size:11px; color:white; text-transform:none; letter-spacing:0; }
+
+  /* MY PROFILE / STATUS */
+  .profile-card {
+    background: linear-gradient(135deg, #0D1A0A 0%, #0A1520 100%);
+    border: 1px solid rgba(29,185,84,0.3);
+    border-radius: 8px;
+    padding: 16px;
+    text-align: center;
+  }
+  .profile-avatar { width: 60px; height: 60px; border-radius: 50%; background: linear-gradient(135deg, var(--mg-green), var(--mg-blue)); display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 900; color: white; margin: 0 auto 8px; border: 2px solid rgba(29,185,84,0.5); }
+  .profile-name { font-size: 15px; font-weight: 800; }
+  .profile-role { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin: 2px 0 10px; }
+  .status-selector { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+  .status-btn { padding: 4px 10px; border-radius: 12px; font-size: 10px; font-weight: 700; cursor: pointer; border: 1px solid; }
+  .status-btn.active-btn { background: rgba(29,185,84,0.2); border-color: var(--mg-green); color: var(--mg-green); }
+  .status-btn.break-btn { background: rgba(232,180,0,0.1); border-color: rgba(232,180,0,0.4); color: var(--text-muted); }
+  .status-btn.dnd-btn { background: rgba(196,18,48,0.1); border-color: rgba(196,18,48,0.4); color: var(--text-muted); }
+
+  /* TARGET PROGRESS */
+  .target-item { margin-bottom: 10px; }
+  .target-item:last-child { margin-bottom: 0; }
+  .target-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+  .target-label { font-size: 11px; color: var(--text-muted); }
+  .target-val { font-size: 12px; font-weight: 700; }
+  .target-bar { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+  .target-fill { height: 100%; border-radius: 3px; transition: width 0.5s; }
+
+  /* MY SCORE */
+  .score-big { font-size: 48px; font-weight: 900; text-align: center; background: linear-gradient(135deg, var(--mg-gold), var(--mg-orange)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; line-height: 1; }
+  .score-label { text-align: center; font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+  .rank-badge { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 10px; }
+  .rank-num { font-size: 22px; font-weight: 800; color: var(--mg-gold); }
+
+  /* TASK LIST */
+  .task-item { display: flex; align-items: flex-start; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--border-light); }
+  .task-item:last-child { border-bottom: none; }
+  .task-check { width: 16px; height: 16px; border-radius: 4px; border: 2px solid var(--border); flex-shrink: 0; margin-top: 1px; display: flex; align-items: center; justify-content: center; font-size: 10px; }
+  .task-check.done { background: var(--mg-green); border-color: var(--mg-green); color: white; }
+  .task-check.pending { border-color: var(--mg-gold); }
+  .task-check.urgent { border-color: var(--mg-red); }
+  .task-text { flex: 1; }
+  .task-name { font-size: 12px; font-weight: 600; }
+  .task-name.done-text { text-decoration: line-through; color: var(--text-muted); font-weight: 400; }
+  .task-meta { font-size: 10px; color: var(--text-muted); }
+  .task-time { font-size: 10px; font-weight: 700; white-space: nowrap; }
+  .task-time.urgent { color: var(--mg-red); }
+  .task-time.soon { color: var(--mg-gold); }
+  .task-time.done { color: var(--mg-green); }
+
+  /* CALL STATUS BANNER */
+  .call-banner {
+    background: linear-gradient(135deg, rgba(29,185,84,0.15) 0%, rgba(26,115,232,0.1) 100%);
+    border: 1px solid rgba(29,185,84,0.4);
+    border-radius: 8px;
+    padding: 12px 14px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .call-status { display: flex; align-items: center; gap: 10px; }
+  .call-icon { width: 36px; height: 36px; border-radius: 50%; background: var(--mg-green); display: flex; align-items: center; justify-content: center; font-size: 18px; animation: ring 2s infinite; }
+  @keyframes ring { 0%,100%{transform:scale(1)} 50%{transform:scale(1.1)} }
+  .call-info h3 { font-size: 14px; font-weight: 800; color: var(--mg-green); }
+  .call-info p { font-size: 11px; color: var(--text-muted); }
+  .call-actions { display: flex; gap: 8px; }
+  .btn { padding: 7px 16px; border-radius: 6px; font-size: 11px; font-weight: 700; cursor: pointer; border: none; text-transform: uppercase; letter-spacing: 0.5px; }
+  .btn-green { background: var(--mg-green); color: black; }
+  .btn-red { background: var(--mg-red); color: white; }
+  .btn-ghost { background: rgba(255,255,255,0.08); color: white; border: 1px solid var(--border); }
+
+  /* RECENT ACTIVITY */
+  .activity-item { display: flex; align-items: flex-start; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--border-light); }
+  .activity-item:last-child { border-bottom: none; }
+  .activity-icon { width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; }
+  .activity-icon.call { background: rgba(29,185,84,0.15); }
+  .activity-icon.wa { background: rgba(37,211,102,0.15); }
+  .activity-icon.sms { background: rgba(232,180,0,0.15); }
+  .activity-icon.email { background: rgba(26,115,232,0.15); }
+  .activity-icon.walkin { background: rgba(196,18,48,0.15); }
+  .activity-info { flex: 1; }
+  .activity-info .name { font-size: 12px; font-weight: 600; }
+  .activity-info .detail { font-size: 10px; color: var(--text-muted); }
+  .activity-time { font-size: 10px; color: var(--text-muted); white-space: nowrap; }
+  .outcome { display: inline-block; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 4px; }
+  .outcome.won { background: rgba(29,185,84,0.15); color: var(--mg-green); }
+  .outcome.nca { background: rgba(232,180,0,0.15); color: var(--mg-gold); }
+  .outcome.cb { background: rgba(26,115,232,0.15); color: var(--mg-blue); }
+  .outcome.np { background: rgba(140,140,140,0.15); color: #888; }
+
+  /* TEAM LEADERBOARD */
+  .lb-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border-light); }
+  .lb-row:last-child { border-bottom: none; }
+  .lb-rank { width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 800; flex-shrink: 0; }
+  .lb-rank.r1 { background: var(--mg-gold); color: black; }
+  .lb-rank.r2 { background: #A0A0A0; color: black; }
+  .lb-rank.r3 { background: #CD7F32; color: white; }
+  .lb-rank.me { background: rgba(29,185,84,0.3); border: 1px solid var(--mg-green); color: var(--mg-green); }
+  .lb-rank.rx { background: var(--border); color: var(--text-muted); }
+  .lb-name { flex: 1; font-size: 12px; }
+  .lb-name.me { font-weight: 800; color: var(--mg-green); }
+  .lb-bar { width: 60px; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+  .lb-fill { height: 100%; border-radius: 2px; }
+  .lb-score { font-size: 12px; font-weight: 800; width: 28px; text-align: right; }
+
+  /* ANNOUNCEMENTS */
+  .announce-item { padding: 8px 10px; border-radius: 6px; margin-bottom: 7px; border-left: 3px solid; }
+  .announce-item:last-child { margin-bottom: 0; }
+  .announce-item.info { background: rgba(26,115,232,0.08); border-color: var(--mg-blue); }
+  .announce-item.warn { background: rgba(232,180,0,0.08); border-color: var(--mg-gold); }
+  .announce-item.success { background: rgba(29,185,84,0.08); border-color: var(--mg-green); }
+  .announce-title { font-size: 11px; font-weight: 700; margin-bottom: 2px; }
+  .announce-body { font-size: 10px; color: var(--text-muted); }
+
+  /* MOTIVATIONAL TICKER */
+  .ticker { background: linear-gradient(135deg, rgba(196,18,48,0.2), rgba(232,180,0,0.1)); border: 1px solid rgba(232,180,0,0.25); border-radius: 8px; padding: 10px 14px; text-align: center; }
+  .ticker .quote { font-size: 13px; font-weight: 600; font-style: italic; color: var(--mg-gold); }
+  .ticker .sub { font-size: 10px; color: var(--text-muted); margin-top: 3px; }
+
+  .section-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text-muted); margin-bottom: 7px; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div style="display:flex;align-items:center;gap:12px">
+    <div class="mg-logo">MG</div>
+    <div>
+      <div style="font-size:14px;font-weight:700">MG Jubilant Motorworks Pvt. Ltd.</div>
+      <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px">Agent Wallboard</div>
+    </div>
+  </div>
+  <div class="header-mid">
+    <h2>🎯 Agent Wallboard</h2>
+    <p id="clock3" style="color:var(--text-muted)">--:--:-- · Monday, 23 March 2026</p>
+  </div>
+  <div class="header-right">
+    <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--mg-green)"><div class="live-dot"></div>LIVE</div>
+    <div class="agent-chip">
+      <div class="avatar">PS</div>
+      <div><div class="name">Priya Sharma</div><div class="dept">Sales Executive · Online</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- ══════════════ LEFT COLUMN ══════════════ -->
+  <div class="left-col">
+
+    <!-- PROFILE -->
+    <div class="profile-card">
+      <div class="profile-avatar">PS</div>
+      <div class="profile-name">Priya Sharma</div>
+      <div class="profile-role">Sales Executive · Team A</div>
+      <div class="status-selector">
+        <div class="status-btn active-btn">● Available</div>
+        <div class="status-btn break-btn">⏸ Break</div>
+        <div class="status-btn dnd-btn">⛔ DND</div>
+      </div>
+    </div>
+
+    <!-- MY SCORE -->
+    <div class="card">
+      <div class="card-title">My Performance Score</div>
+      <div class="score-big">92</div>
+      <div class="score-label">out of 100 · MTD Score</div>
+      <div class="rank-badge">
+        <div style="font-size:12px;color:var(--text-muted)">Team Rank:</div>
+        <div class="rank-num">🥇 #1</div>
+        <div style="font-size:10px;color:var(--mg-green)">of 6 agents</div>
+      </div>
+      <div style="margin-top:12px;border-top:1px solid var(--border);padding-top:10px">
+        <div style="display:flex;justify-content:space-between;font-size:11px;padding:3px 0"><span style="color:var(--text-muted)">Activity Score</span><span style="color:var(--mg-blue);font-weight:700">94</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;padding:3px 0"><span style="color:var(--text-muted)">Conversion Score</span><span style="color:var(--mg-gold);font-weight:700">88</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;padding:3px 0"><span style="color:var(--text-muted)">Customer Satisfaction</span><span style="color:var(--mg-green);font-weight:700">4.8/5</span></div>
+      </div>
+    </div>
+
+    <!-- MY TARGETS -->
+    <div class="card">
+      <div class="card-title">My Targets — MTD</div>
+      <div class="target-item">
+        <div class="target-header"><span class="target-label">Calls Made</span><span class="target-val" style="color:var(--mg-green)">218 / 200</span></div>
+        <div class="target-bar"><div class="target-fill" style="width:100%;background:var(--mg-green)"></div></div>
+      </div>
+      <div class="target-item">
+        <div class="target-header"><span class="target-label">Test Drives</span><span class="target-val">17 / 20</span></div>
+        <div class="target-bar"><div class="target-fill" style="width:85%;background:var(--mg-blue)"></div></div>
+      </div>
+      <div class="target-item">
+        <div class="target-header"><span class="target-label">Bookings</span><span class="target-val">6 / 7</span></div>
+        <div class="target-bar"><div class="target-fill" style="width:86%;background:var(--mg-gold)"></div></div>
+      </div>
+      <div class="target-item">
+        <div class="target-header"><span class="target-label">Deliveries</span><span class="target-val">5 / 6</span></div>
+        <div class="target-bar"><div class="target-fill" style="width:83%;background:var(--mg-orange)"></div></div>
+      </div>
+      <div class="target-item">
+        <div class="target-header"><span class="target-label">WhatsApp Follow-ups</span><span class="target-val" style="color:var(--mg-green)">44 / 40</span></div>
+        <div class="target-bar"><div class="target-fill" style="width:100%;background:var(--mg-green)"></div></div>
+      </div>
+    </div>
+
+    <!-- ANNOUNCEMENTS -->
+    <div class="card">
+      <div class="card-title">📢 Announcements</div>
+      <div class="announce-item success">
+        <div class="announce-title">🏆 You're #1 this month!</div>
+        <div class="announce-body">Keep it up — you lead the sales team for March 2026.</div>
+      </div>
+      <div class="announce-item warn">
+        <div class="announce-title">⚠ 3 follow-ups overdue</div>
+        <div class="announce-body">Raj Malhotra, Preethi S., and 1 more require immediate action.</div>
+      </div>
+      <div class="announce-item info">
+        <div class="announce-title">ℹ New pricing effective 25 Mar</div>
+        <div class="announce-body">ZS EV Pro pricing updated. Check product sheet in CRM.</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ══════════════ CENTER COLUMN ══════════════ -->
+  <div class="center-col">
+
+    <!-- INCOMING CALL BANNER -->
+    <div class="call-banner">
+      <div class="call-status">
+        <div class="call-icon">📞</div>
+        <div class="call-info">
+          <h3>Incoming Call: +91 98765 43210</h3>
+          <p>Raj Malhotra · ZS EV Enquiry · Lead since 18 Mar · 3rd attempt</p>
+        </div>
+      </div>
+      <div class="call-actions">
+        <button class="btn btn-green">✓ Answer</button>
+        <button class="btn btn-ghost">Log & Skip</button>
+        <button class="btn btn-red">✗ Decline</button>
+      </div>
+    </div>
+
+    <!-- TODAY'S TASKS -->
+    <div class="card">
+      <div class="card-title">Today's Task List <span class="hl" style="color:var(--mg-orange)">8 tasks · 3 done</span></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0">
+        <div>
+          <div class="task-item">
+            <div class="task-check done">✓</div>
+            <div class="task-text"><div class="task-name done-text">Morning check-in call — Gaurav Singh</div><div class="task-meta">Booking finalise · Gloster</div></div>
+            <div class="task-time done">Done</div>
+          </div>
+          <div class="task-item">
+            <div class="task-check done">✓</div>
+            <div class="task-text"><div class="task-name done-text">WhatsApp quote — Lakshmi Prasad</div><div class="task-meta">Hector · post test-drive</div></div>
+            <div class="task-time done">Done</div>
+          </div>
+          <div class="task-item">
+            <div class="task-check done">✓</div>
+            <div class="task-text"><div class="task-name done-text">Update CRM — 4 cold calls</div><div class="task-meta">Yesterday's call logs</div></div>
+            <div class="task-time done">Done</div>
+          </div>
+          <div class="task-item">
+            <div class="task-check urgent">!</div>
+            <div class="task-text"><div class="task-name">Follow up — Raj Malhotra</div><div class="task-meta">ZS EV · 3 missed calls</div></div>
+            <div class="task-time urgent">OVERDUE</div>
+          </div>
+        </div>
+        <div>
+          <div class="task-item">
+            <div class="task-check pending"></div>
+            <div class="task-text"><div class="task-name">Test drive — 11:00 AM</div><div class="task-meta">Vikram Shah · Astor</div></div>
+            <div class="task-time soon">11:00 AM</div>
+          </div>
+          <div class="task-item">
+            <div class="task-check pending"></div>
+            <div class="task-text"><div class="task-name">Negotiation call — Pooja Sinha</div><div class="task-meta">Hector Plus · Finance discussion</div></div>
+            <div class="task-time soon">12:30 PM</div>
+          </div>
+          <div class="task-item">
+            <div class="task-check pending"></div>
+            <div class="task-text"><div class="task-name">Delivery handover — R. Malhotra</div><div class="task-meta">ZS EV Excite · Reg: TBD</div></div>
+            <div class="task-time">3:00 PM</div>
+          </div>
+          <div class="task-item">
+            <div class="task-check pending"></div>
+            <div class="task-text"><div class="task-name">End-of-day CRM update</div><div class="task-meta">Log all calls & update stages</div></div>
+            <div class="task-time">6:00 PM</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MY CHANNEL ACTIVITY + CHART -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="card">
+        <div class="card-title">Today's Activity</div>
+        <canvas id="activityPie" height="140"></canvas>
+      </div>
+      <div class="card">
+        <div class="card-title">My Call Volume — This Week</div>
+        <canvas id="myCallChart" height="140"></canvas>
+      </div>
+    </div>
+
+    <!-- RECENT ACTIVITY FEED -->
+    <div class="card">
+      <div class="card-title">Recent Activity Feed <span class="hl" style="color:var(--text-muted)">Last 2 hours</span></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0">
+        <div>
+          <div class="activity-item">
+            <div class="activity-icon call">📞</div>
+            <div class="activity-info"><div class="name">Gaurav Singh <span class="outcome won">BOOKED</span></div><div class="detail">Gloster · Outbound · 6m 20s</div></div>
+            <div class="activity-time">10:34 AM</div>
+          </div>
+          <div class="activity-item">
+            <div class="activity-icon wa">💬</div>
+            <div class="activity-info"><div class="name">Lakshmi Prasad <span class="outcome cb">CALLBACK</span></div><div class="detail">WhatsApp · Quote sent</div></div>
+            <div class="activity-time">10:18 AM</div>
+          </div>
+          <div class="activity-item">
+            <div class="activity-icon call">📞</div>
+            <div class="activity-info"><div class="name">Ramesh Gupta <span class="outcome nca">NCA</span></div><div class="detail">Outbound cold call · No answer</div></div>
+            <div class="activity-time">10:02 AM</div>
+          </div>
+          <div class="activity-item">
+            <div class="activity-icon walkin">🚶</div>
+            <div class="activity-info"><div class="name">Walk-in: Vikram Shah <span class="outcome cb">TD SCHED</span></div><div class="detail">Astor · 11 AM test drive booked</div></div>
+            <div class="activity-time">09:45 AM</div>
+          </div>
+        </div>
+        <div>
+          <div class="activity-item">
+            <div class="activity-icon call">📞</div>
+            <div class="activity-info"><div class="name">Priya Jain <span class="outcome cb">FOLLOW-UP</span></div><div class="detail">Inbound · ZS EV query · 4m 10s</div></div>
+            <div class="activity-time">09:30 AM</div>
+          </div>
+          <div class="activity-item">
+            <div class="activity-icon sms">📩</div>
+            <div class="activity-info"><div class="name">Bulk SMS sent <span class="outcome np">CAMPAIGN</span></div><div class="detail">March Festive Offers · 45 contacts</div></div>
+            <div class="activity-time">09:15 AM</div>
+          </div>
+          <div class="activity-item">
+            <div class="activity-icon call">📞</div>
+            <div class="activity-info"><div class="name">Sunil Arora <span class="outcome np">NCA</span></div><div class="detail">Outbound cold call · No answer</div></div>
+            <div class="activity-time">09:05 AM</div>
+          </div>
+          <div class="activity-item">
+            <div class="activity-icon email">✉️</div>
+            <div class="activity-info"><div class="name">Email reply — Pooja Sinha <span class="outcome cb">CALLBACK</span></div><div class="detail">Hector Plus finance options sent</div></div>
+            <div class="activity-time">08:58 AM</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MOTIVATIONAL QUOTE -->
+    <div class="ticker">
+      <div class="quote">"Champions aren't made in comfort zones. Every call is an opportunity."</div>
+      <div class="sub">You are 1 delivery away from hitting your March target 🎯</div>
+    </div>
+
+  </div>
+
+  <!-- ══════════════ RIGHT COLUMN ══════════════ -->
+  <div class="right-col">
+
+    <!-- TEAM LEADERBOARD -->
+    <div class="card">
+      <div class="card-title">Team Leaderboard — MTD</div>
+      <div class="lb-row"><div class="lb-rank r1">1</div><span class="lb-name me">Priya Sharma ← You</span><div class="lb-bar"><div class="lb-fill" style="width:92%;background:linear-gradient(90deg,var(--mg-red),var(--mg-gold))"></div></div><span class="lb-score" style="color:var(--mg-gold)">92</span></div>
+      <div class="lb-row"><div class="lb-rank r2">2</div><span class="lb-name">Rahul Verma</span><div class="lb-bar"><div class="lb-fill" style="width:84%;background:var(--mg-blue)"></div></div><span class="lb-score">84</span></div>
+      <div class="lb-row"><div class="lb-rank r3">3</div><span class="lb-name">Anjali Rao</span><div class="lb-bar"><div class="lb-fill" style="width:78%;background:var(--mg-orange)"></div></div><span class="lb-score">78</span></div>
+      <div class="lb-row"><div class="lb-rank rx">4</div><span class="lb-name">Kiran Nair</span><div class="lb-bar"><div class="lb-fill" style="width:71%;background:#888"></div></div><span class="lb-score" style="color:var(--text-muted)">71</span></div>
+      <div class="lb-row"><div class="lb-rank rx">5</div><span class="lb-name">Sneha Mehta</span><div class="lb-bar"><div class="lb-fill" style="width:68%;background:#888"></div></div><span class="lb-score" style="color:var(--text-muted)">68</span></div>
+      <div class="lb-row"><div class="lb-rank rx">6</div><span class="lb-name">Deepak Joshi</span><div class="lb-bar"><div class="lb-fill" style="width:65%;background:#888"></div></div><span class="lb-score" style="color:var(--text-muted)">65</span></div>
+    </div>
+
+    <!-- MY OPEN LEADS -->
+    <div class="card">
+      <div class="card-title">My Open Leads <span class="hl" style="color:var(--mg-orange)">14 active</span></div>
+      <div style="display:flex;flex-direction:column;gap:0">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border-light)">
+          <div><div style="font-size:12px;font-weight:600">Raj Malhotra</div><div style="font-size:10px;color:var(--text-muted)">ZS EV Excite · Contacted</div></div>
+          <div style="font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(196,18,48,0.15);color:#FF6B6B;font-weight:700">HOT</div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border-light)">
+          <div><div style="font-size:12px;font-weight:600">Pooja Sinha</div><div style="font-size:10px;color:var(--text-muted)">Hector Plus · Negotiation</div></div>
+          <div style="font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(232,180,0,0.15);color:var(--mg-gold);font-weight:700">WARM</div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border-light)">
+          <div><div style="font-size:12px;font-weight:600">Vikram Shah</div><div style="font-size:10px;color:var(--text-muted)">Astor · Test Drive Today</div></div>
+          <div style="font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(232,180,0,0.15);color:var(--mg-gold);font-weight:700">WARM</div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border-light)">
+          <div><div style="font-size:12px;font-weight:600">Meena Krishnan</div><div style="font-size:10px;color:var(--text-muted)">Gloster · New Lead</div></div>
+          <div style="font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(26,115,232,0.15);color:var(--mg-blue);font-weight:700">NEW</div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border-light)">
+          <div><div style="font-size:12px;font-weight:600">Priya Jain</div><div style="font-size:10px;color:var(--text-muted)">ZS EV · Inbound inquiry</div></div>
+          <div style="font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(26,115,232,0.15);color:var(--mg-blue);font-weight:700">NEW</div>
+        </div>
+        <div style="padding:5px 0;font-size:10px;color:var(--text-muted);text-align:center">+ 9 more leads in pipeline →</div>
+      </div>
+    </div>
+
+    <!-- CHANNEL SUMMARY TODAY -->
+    <div class="card">
+      <div class="card-title">My Channel Summary — Today</div>
+      <div style="display:flex;flex-direction:column;gap:2px">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 8px;background:rgba(76,175,80,0.06);border-radius:5px">
+          <span style="font-size:11px;color:var(--text-muted)">📞 Calls Made</span>
+          <span style="font-weight:700;font-size:13px">18</span>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 8px;background:rgba(37,211,102,0.06);border-radius:5px">
+          <span style="font-size:11px;color:var(--text-muted)">💬 WhatsApp Sent</span>
+          <span style="font-weight:700;font-size:13px">12</span>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 8px;background:rgba(232,180,0,0.06);border-radius:5px">
+          <span style="font-size:11px;color:var(--text-muted)">📩 SMS Sent</span>
+          <span style="font-weight:700;font-size:13px">45</span>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 8px;background:rgba(26,115,232,0.06);border-radius:5px">
+          <span style="font-size:11px;color:var(--text-muted)">✉️ Emails Sent</span>
+          <span style="font-weight:700;font-size:13px">4</span>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 8px;background:rgba(196,18,48,0.06);border-radius:5px">
+          <span style="font-size:11px;color:var(--text-muted)">🚶 Walk-ins handled</span>
+          <span style="font-weight:700;font-size:13px">3</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- SHIFT TIMER -->
+    <div class="card" style="text-align:center">
+      <div class="card-title" style="justify-content:center">Shift Status</div>
+      <div style="font-size:32px;font-weight:900;color:var(--mg-green);font-variant-numeric:tabular-nums" id="shiftTimer">04:23:17</div>
+      <div style="font-size:10px;color:var(--text-muted);margin-top:2px">Shift: 9:00 AM – 6:00 PM · Mon 23 Mar</div>
+      <div style="margin-top:8px">
+        <div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden">
+          <div style="height:100%;width:48%;background:linear-gradient(90deg,var(--mg-green),var(--mg-blue));border-radius:2px"></div>
+        </div>
+        <div style="font-size:10px;color:var(--text-muted);margin-top:3px">48% of shift completed</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// Clock
+function updateClock(){
+  const now = new Date();
+  document.getElementById('clock3').textContent = now.toLocaleTimeString('en-IN') + ' · Monday, 23 March 2026';
+}
+setInterval(updateClock,1000); updateClock();
+
+// Shift timer (counting up from 09:00)
+function updateShift(){
+  const now = new Date();
+  const start = new Date(now); start.setHours(9,0,0,0);
+  let diff = Math.floor((now - start)/1000);
+  if(diff < 0) diff = 0;
+  const h = Math.floor(diff/3600).toString().padStart(2,'0');
+  const m = Math.floor((diff%3600)/60).toString().padStart(2,'0');
+  const s = (diff%60).toString().padStart(2,'0');
+  document.getElementById('shiftTimer').textContent = h+':'+m+':'+s;
+}
+setInterval(updateShift,1000); updateShift();
+
+const tk = { color:'#7A8B9E', font:{size:9} };
+const gl = { color:'rgba(36,48,68,0.8)' };
+
+// Activity Pie
+new Chart(document.getElementById('activityPie'), {
+  type:'doughnut',
+  data:{
+    labels:['Calls','WhatsApp','SMS','Email','Walk-in'],
+    datasets:[{ data:[18,12,45,4,3],
+      backgroundColor:['#4CAF50','#25D366','#E8B400','#1A73E8','#C41230'],
+      borderWidth:2, borderColor:'#161D27'
+    }]
+  },
+  options:{
+    responsive:true, cutout:'58%',
+    plugins:{ legend:{ position:'bottom', labels:{ color:'#7A8B9E', font:{size:9}, boxWidth:8, padding:5 } } }
+  }
+});
+
+// My call chart
+new Chart(document.getElementById('myCallChart'), {
+  type:'bar',
+  data:{
+    labels:['Mon','Tue','Wed','Thu','Fri','Sat','Today'],
+    datasets:[
+      { label:'Outbound', data:[32,38,29,42,35,20,18], backgroundColor:'rgba(29,185,84,0.7)', borderRadius:3 },
+      { label:'Inbound', data:[8,12,10,14,9,6,5], backgroundColor:'rgba(26,115,232,0.7)', borderRadius:3 }
+    ]
+  },
+  options:{
+    responsive:true,
+    plugins:{ legend:{ labels:{ color:'#7A8B9E', font:{size:9}, boxWidth:8, padding:5 } } },
+    scales:{
+      x:{ grid:{display:false}, ticks:tk, stacked:false },
+      y:{ grid:gl, ticks:tk, beginAtZero:true }
+    }
+  }
+});
+</script>
+</body>
+</html>
